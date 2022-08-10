@@ -139,17 +139,17 @@ def prepare_dataloaders(hparams):
     else:
         train_sampler = None
         shuffle = False
-        bucket_boundaries = [200 , 400, 600, 800] #[100, 200, 300, 400, 500, 600, 700, 800, 900, 1000 ]
+        bucket_boundaries = [50, 100, 150, 200, 300, 400, 600, 800] #[100, 200, 300, 400, 500, 600, 700, 800, 900, 1000 ]
         batch_sizes = hparams.batch_size
-        sampler = BySequenceLengthSampler(trainset, bucket_boundaries, batch_sizes)
+        train_sampler = BySequenceLengthSampler(trainset, bucket_boundaries, batch_sizes)
 
         #batch_size = 1,
         #batch_sampler = sampler,
         #num_workers = 0,
         #drop_last = False, pin_memory = False)
 
-    train_loader = DataLoader(trainset, num_workers=8, shuffle=shuffle,
-                              sampler=sampler,
+    train_loader = DataLoader(trainset, num_workers=0, shuffle=shuffle,
+                              sampler=train_sampler,
                               batch_size=48, pin_memory=False,
                               drop_last=True, collate_fn=collate_fn)
     return train_loader, valset, collate_fn
@@ -217,7 +217,7 @@ def save_checkpoint(model, optimizer, learning_rate, iteration, filepath):
 def validate(model, criterion, valset, iteration, batch_size, n_gpus,
              collate_fn, logger, distributed_run, rank):
     """Handles all the validation scoring and printing"""
-    bucket_boundaries = [200, 400, 600, 800]  # [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000 ]
+    bucket_boundaries = [50, 100, 150, 200, 300, 400, 600, 800]  # [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000 ]
     batch_sizes = hparams.batch_size
    # sampler = BySequenceLengthSampler(valset, bucket_boundaries, batch_sizes)
     model.eval()
@@ -225,7 +225,7 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus,
         val_sampler = DistributedSampler(valset) if distributed_run else BySequenceLengthSampler(valset,
                                                                                                  bucket_boundaries,
                                                                                                  batch_sizes)
-        val_loader = DataLoader(valset, sampler=val_sampler, num_workers=1,
+        val_loader = DataLoader(valset, sampler=val_sampler, num_workers=0,
                                 shuffle=False, batch_size=batch_size,
                                 pin_memory=False, collate_fn=collate_fn)
 
@@ -410,8 +410,8 @@ if __name__ == '__main__':
 
 
 
-    train("D:\\OutDir1", "D:\\LogDir1",  args.checkpoint_path,
-          args.warm_start, args.n_gpus, args.rank, args.group_name, hparams)
+    #train("D:\\OutDir1", "D:\\LogDir1",  args.checkpoint_path,
+    #      args.warm_start, args.n_gpus, args.rank, args.group_name, hparams)
 
-    #train("D:\\OutDir1", "D:\\LogDir1",  "D:\\OutDir1\\checkpoint_32500",
-    #      False, args.n_gpus, args.rank, args.group_name, hparams)
+    train("D:\\OutDir1", "D:\\LogDir1",  "D:\\OutDir1\\checkpoint_70000",
+          False, args.n_gpus, args.rank, args.group_name, hparams)

@@ -126,8 +126,8 @@ class TextMelCollate():
 
         voice = torch.LongTensor(len(batch), 1)
         voice.zero_()
-        for i in range(len(batch)):
-            voice[i][0] = batch[i][2]
+        for i in range(len(ids_sorted_decreasing)):
+            voice[i][0] = batch[ids_sorted_decreasing[i]][2]
 
         #voice = torch.full((64, 1), batch[0][2])
 
