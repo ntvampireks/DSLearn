@@ -9,7 +9,7 @@ from distributed import apply_gradient_allreduce
 import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data import DataLoader
-
+#import espeak_phonemizer
 from model import Tacotron2
 from data_utils import TextMelLoader, TextMelCollate
 from loss_function import Tacotron2Loss
@@ -43,7 +43,7 @@ class Hparams:
         self.training_files = 'D:\\train.json'
         self.validation_files = 'D:\\test.json'
         self.text_cleaners = ['english_cleaners']
-
+        self.use_phonemes = True
         ################################
         # Audio Parameters             #
         ################################
@@ -98,7 +98,7 @@ class Hparams:
         # Optimization Hyperparameters #
         ################################
         self.use_saved_learning_rate:bool = False
-        self.learning_rate = 1e-3
+        self.learning_rate = 0.0005
         self.weight_decay = 1e-6
         self.grad_clip_thresh = 1.0
         self.batch_size = 48
@@ -288,8 +288,7 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
         output_directory, log_directory, rank)                              #настройки логирования
 
     train_loader, valset, collate_fn = prepare_dataloaders(hparams)
-    #for i, batch in enumerate(train_loader):
-     #   print (i,batch[0].shape[0], batch[2].shape[2])
+
     # Load checkpoint if one exists
     iteration = 0
     epoch_offset = 0
@@ -319,16 +318,12 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
                     output_directory, "checkpoint_epoch_{}".format(epoch))
                 save_checkpoint(model, optimizer, learning_rate, iteration,
                                 checkpoint_path)
-                #model.eval()
-                #torch.onnx.export(model, (torch.randn(48, 244), torch.randn(48,), torch.randn(48,80,909), 244, torch.randn(48,) , torch.randn(48, 1).zero_()) , "D:\\test.pth")
-                #model.train()
+
         for i, batch in enumerate(train_loader):
             start = time.perf_counter()
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = learning_rate
-            #if i % 3 == 0:
+            #for param_group in optimizer.param_groups:
+            #    param_group['lr'] = learning_rate
             model.zero_grad()
-            #    optimizer.step()
             x, y = model.parse_batch(batch)
             y_pred = model(x)
 
@@ -354,7 +349,6 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
 
                 except:
                     print("error on batch {}".format(i))
-            #if i % 3 == 0:
             optimizer.step()
 
             if not is_overflow and rank == 0:
@@ -413,5 +407,5 @@ if __name__ == '__main__':
     #train("D:\\OutDir1", "D:\\LogDir1",  args.checkpoint_path,
     #      args.warm_start, args.n_gpus, args.rank, args.group_name, hparams)
 
-    train("D:\\OutDir1", "D:\\LogDir1",  "D:\\OutDir1\\checkpoint_70000",
+    train("D:\\OutDir1", "D:\\LogDir1",  "D:\\OutDir1\\checkpoint_294000",
           False, args.n_gpus, args.rank, args.group_name, hparams)

@@ -1,15 +1,25 @@
 """ from https://github.com/keithito/tacotron """
 import re
 from text import cleaners
-from text.symbols import symbols
-
+from text.symbols import symbols, phonemes
+from phonemizer import phonemize
 
 # Mappings from symbol to numeric ID and vice versa:
 _symbol_to_id = {s: i for i, s in enumerate(symbols)}
 _id_to_symbol = {i: s for i, s in enumerate(symbols)}
 
+_id_to_phoneme = {i: s for i, s in enumerate(phonemes)}
+_phoneme_to_id = {s: i for i, s in enumerate(phonemes)}
+
 # Regular expression matching text enclosed in curly braces:
 _curly_re = re.compile(r'(.*?)\{(.+?)\}(.*)')
+
+
+def text_to_phonemes_to_sequence(text):
+    sequence = []
+    sequence += _phonemes_to_sequence(text)
+    return sequence
+
 
 
 def text_to_sequence(text, cleaner_names):
@@ -62,9 +72,11 @@ def _clean_text(text, cleaner_names):
   return text
 
 
-def _symbols_to_sequence(symbols):
-  return [_symbol_to_id[s] for s in symbols if _should_keep_symbol(s)]
+def _symbols_to_sequence(symb):
+  return [_symbol_to_id[s] for s in symb if _should_keep_symbol(s)]
 
+def _phonemes_to_sequence(phon):
+  return [_phoneme_to_id[s] for s in phon if _should_keep_phoneme(s)]
 
 def _arpabet_to_sequence(text):
   return _symbols_to_sequence(['@' + s for s in text.split()])
@@ -72,3 +84,6 @@ def _arpabet_to_sequence(text):
 
 def _should_keep_symbol(s):
   return s in _symbol_to_id and s != '_' and s != '~'
+
+def _should_keep_phoneme(s):
+  return s in _phoneme_to_id and s != '_' and s != '~'

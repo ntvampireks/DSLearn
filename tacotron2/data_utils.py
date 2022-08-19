@@ -5,7 +5,7 @@ import torch.utils.data
 
 import layers
 from utils import load_wav_to_torch, load_filepaths_and_text
-from text import text_to_sequence, _symbols_to_sequence
+from text import text_to_sequence, _symbols_to_sequence, _phonemes_to_sequence, text_to_phonemes_to_sequence
 
 
 class TextMelLoader(torch.utils.data.Dataset):
@@ -20,6 +20,7 @@ class TextMelLoader(torch.utils.data.Dataset):
         self.max_wav_value = hparams.max_wav_value
         self.sampling_rate = hparams.sampling_rate
         self.load_mel_from_disk = hparams.load_mel_from_disk
+        self.use_phonemes = hparams.use_phonemes
         self.stft = layers.TacotronSTFT(
             hparams.filter_length, hparams.hop_length, hparams.win_length,
             hparams.n_mel_channels, hparams.sampling_rate, hparams.mel_fmin,
@@ -27,16 +28,22 @@ class TextMelLoader(torch.utils.data.Dataset):
         random.seed(hparams.seed)
         random.shuffle(self.audiopaths_and_text)
 
-    def get_mel_text_pair(self, audiopath_and_text):
+    def get_mel_text_pair(self, audiopath_and_text, use_phonemes=False):
         # separate filename and text
         try:
-            audiopath, text, voiceId = audiopath_and_text[0], audiopath_and_text[1], audiopath_and_text[2]
-            text = self.get_text(text)
+            audiopath, text, voiceId, transcipt = audiopath_and_text[0], audiopath_and_text[1], audiopath_and_text[2],\
+                                                  audiopath_and_text[3]
+            if use_phonemes:
+                text = self.get_phonemes(transcipt)
+            else:
+                text = self.get_text(text)
+
             mel = self.get_mel(audiopath)
             voice = self.get_voices(voiceId)
             return (text, mel, int(voiceId))
         except:
             print(audiopath_and_text)
+
     def get_mel(self, filename):
         if not self.load_mel_from_disk:
             audio, sampling_rate = load_wav_to_torch(filename)
@@ -57,9 +64,14 @@ class TextMelLoader(torch.utils.data.Dataset):
         return melspec
 
     def get_text(self, text):
+        #text_norm = torch.IntTensor(text_to_phonemes_to_sequence(text))
         text_norm = torch.IntTensor(text_to_sequence(text, self.text_cleaners))
         return text_norm
 
+    def get_phonemes(self, text):
+        text_norm = torch.IntTensor(text_to_phonemes_to_sequence(text))
+        #text_norm = torch.IntTensor(text_to_sequence(text, self.text_cleaners))
+        return text_norm
 
     def get_voices(self, voice):
         v = []
@@ -72,7 +84,7 @@ class TextMelLoader(torch.utils.data.Dataset):
         return [s for s in symbols]
 
     def __getitem__(self, index):
-        return self.get_mel_text_pair(self.audiopaths_and_text[index])
+        return self.get_mel_text_pair(self.audiopaths_and_text[index], self.use_phonemes)
 
     def __len__(self):
         return len(self.audiopaths_and_text)
