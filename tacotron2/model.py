@@ -207,7 +207,7 @@ class Decoder(nn.Module):
         self.n_mel_channels = hparams.n_mel_channels
         self.n_frames_per_step = hparams.n_frames_per_step
         self.encoder_embedding_dim = hparams.enc_aft_concat_voice_dim
-        #self.multivoice_embedding_dim = hparams.multivoice_embedding_dim
+        # self.multivoice_embedding_dim = hparams.multivoice_embedding_dim
         self.attention_rnn_dim = hparams.attention_rnn_dim
         self.decoder_rnn_dim = hparams.decoder_rnn_dim
         self.prenet_dim = hparams.prenet_dim
@@ -231,7 +231,7 @@ class Decoder(nn.Module):
 
         self.decoder_rnn = nn.LSTMCell(
             hparams.attention_rnn_dim + hparams.enc_aft_concat_voice_dim,
-            hparams.decoder_rnn_dim, 1)
+            hparams.decoder_rnn_dim, True)  # 1)
 
         self.linear_projection = LinearNorm(
             hparams.decoder_rnn_dim + hparams.enc_aft_concat_voice_dim,
@@ -468,9 +468,10 @@ class Tacotron2(nn.Module):
             hparams.multivoice_max_voices, hparams.multivoice_embedding_dim)
         std = sqrt(2.0 / (hparams.n_symbols + hparams.symbols_embedding_dim))
         val = sqrt(3.0) * std  # uniform bounds for std
-        #self.embedding.weight.data.uniform_(-val, val)
-        #std = sqrt(2.0 / (hparams.multivoice_max_voices + hparams.multivoice_embedding_dim))
-        #val = sqrt(3.0) * std  # uniform bounds for std
+        # экспериментировал с разными вариантами
+        #  self.embedding.weight.data.uniform_(-val, val)
+        #  std = sqrt(2.0 / (hparams.multivoice_max_voices + hparams.multivoice_embedding_dim))
+        #  val = sqrt(3.0) * std  # uniform bounds for std
         self.embedding_voice.weight.data.uniform_(-val, val)
         self.encoder = Encoder(hparams)
         self.decoder = Decoder(hparams)
@@ -506,14 +507,12 @@ class Tacotron2(nn.Module):
     def forward(self, inputs):
         text_inputs, text_lengths, mels, max_len, output_lengths, voice = inputs
         text_lengths, output_lengths = text_lengths.data, output_lengths.data
-        embedded_voices = self.embedding_voice(voice)#.transpose(1, 2)
+        embedded_voices = self.embedding_voice(voice)  #.transpose(1, 2)
         embedded_voices = embedded_voices.expand(voice.size(dim=0), max_len, 32)
         embedded_inputs = self.embedding(text_inputs).transpose(1, 2)
 
-
-        #concat_embs = torch.cat((embedded_inputs, embedded_voices), dim=1)
-
         encoder_outputs = self.encoder(embedded_inputs, text_lengths)
+        # самая мякотка для мультивойса. Заэмбеженные голоса цепляем с выходом декодера и пихаем в декодер
         concat_embs = torch.cat((encoder_outputs, embedded_voices), dim=2)
 
         mel_outputs, gate_outputs, alignments = self.decoder(
@@ -526,10 +525,10 @@ class Tacotron2(nn.Module):
             [mel_outputs, mel_outputs_postnet, gate_outputs, alignments],
             output_lengths)
 
-    def inference(self, inputs, voiceId):
+    def inference(self, inputs, voice_id):
         embedded_inputs = self.embedding(inputs).transpose(1, 2)
 
-        embedded_voices = self.embedding_voice(voiceId)
+        embedded_voices = self.embedding_voice(voice_id)
         embedded_voices = embedded_voices.expand(1, embedded_inputs.size(dim=2), 32)
 
         encoder_outputs = self.encoder.inference(embedded_inputs)

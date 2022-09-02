@@ -9,17 +9,15 @@ from distributed import apply_gradient_allreduce
 import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data import DataLoader
-#import espeak_phonemizer
 from model import Tacotron2
 from data_utils import TextMelLoader, TextMelCollate
 from loss_function import Tacotron2Loss
 from logger import Tacotron2Logger
 from Bucket_Length import BySequenceLengthSampler
-#  from hparams import create_hparams
-#import netron
-import torch.onnx
+
 
 class Hparams:
+    # лень разбираться с параметрами, просто переопределю их здесь
     def __init__(self):
         ################################
         # Experiment Parameters        #
@@ -28,7 +26,7 @@ class Hparams:
         self.iters_per_checkpoint = 500
         self.seed = 1234
         self.dynamic_loss_scaling: bool = True
-        self.fp16_run:bool = False
+        self.fp16_run: bool = False
         self.distributed_run: bool = False
         self.dist_backend: str = "nccl"
         self.dist_url = "tcp://localhost:54321"
@@ -67,22 +65,22 @@ class Hparams:
         self.encoder_n_convolutions = 3
         self.encoder_embedding_dim = 512
 
-        #размер эмбеддинга голосов
+        # размер эмбеддинга голосов
         self.multivoice_embedding_dim = 32
         self.multivoice_max_voices = 10
         self.enc_aft_concat_voice_dim = self.encoder_embedding_dim + self.multivoice_embedding_dim
 
         # Decoder parameters
         self.n_frames_per_step = 1  # currently only 1 is supported
-        self.decoder_rnn_dim = 1024 #+ int(self.multivoice_embedding_dim * 2)
-        self.prenet_dim = 256 #+ int(self.multivoice_embedding_dim/2)
+        self.decoder_rnn_dim = 1024  # + int(self.multivoice_embedding_dim * 2)
+        self.prenet_dim = 256  # + int(self.multivoice_embedding_dim/2)
         self.max_decoder_steps = 1500
         self.gate_threshold = 0.5
         self.p_attention_dropout = 0.1
         self.p_decoder_dropout = 0.1
 
         # Attention parameters
-        self.attention_rnn_dim = 1024 #+ int(self.multivoice_embedding_dim*2)
+        self.attention_rnn_dim = 1024  # + int(self.multivoice_embedding_dim*2)
         self.attention_dim = 128
 
         # Location Layer parameters
@@ -97,13 +95,12 @@ class Hparams:
         ################################
         # Optimization Hyperparameters #
         ################################
-        self.use_saved_learning_rate:bool = False
+        self.use_saved_learning_rate: bool = False
         self.learning_rate = 0.0005
         self.weight_decay = 1e-6
         self.grad_clip_thresh = 1.0
         self.batch_size = 48
         self.mask_padding = True  # set model's padded outputs to padded values
-
 
 
 def reduce_tensor(tensor, n_gpus):
@@ -137,16 +134,16 @@ def prepare_dataloaders(hparams):
         train_sampler = DistributedSampler(trainset)
         shuffle = False
     else:
-        train_sampler = None
+        train_sampler = None  # если раскидывание по корзинкам не нужно - удали четыре следующие строки
         shuffle = False
-        bucket_boundaries = [50, 100, 150, 200, 300, 400, 600, 800] #[100, 200, 300, 400, 500, 600, 700, 800, 900, 1000 ]
+        bucket_boundaries = [50, 100, 150, 200, 300, 400, 600, 800]
         batch_sizes = hparams.batch_size
         train_sampler = BySequenceLengthSampler(trainset, bucket_boundaries, batch_sizes)
 
-        #batch_size = 1,
-        #batch_sampler = sampler,
-        #num_workers = 0,
-        #drop_last = False, pin_memory = False)
+        # batch_size = 1,
+        # batch_sampler = sampler,
+        # num_workers = 0,
+        # drop_last = False, pin_memory = False)
 
     train_loader = DataLoader(trainset, num_workers=0, shuffle=shuffle,
                               sampler=train_sampler,
@@ -219,7 +216,7 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus,
     """Handles all the validation scoring and printing"""
     bucket_boundaries = [50, 100, 150, 200, 300, 400, 600, 800]  # [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000 ]
     batch_sizes = hparams.batch_size
-   # sampler = BySequenceLengthSampler(valset, bucket_boundaries, batch_sizes)
+    # sampler = BySequenceLengthSampler(valset, bucket_boundaries, batch_sizes)
     model.eval()
     with torch.no_grad():
         val_sampler = DistributedSampler(valset) if distributed_run else BySequenceLengthSampler(valset,
@@ -262,30 +259,30 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
     """
     hparams = Hparams()
 
-    if hparams.distributed_run:                                             #инициализируем распределенное приложение
+    if hparams.distributed_run:                                             # инициализируем распределенное приложение
         init_distributed(hparams, n_gpus, rank, group_name)
         init_distributed(hparams, n_gpus, rank, group_name)
 
-    torch.manual_seed(hparams.seed)                                         #задаем начельные seed
+    torch.manual_seed(hparams.seed)                                         # задаем начельные seed
     torch.cuda.manual_seed(hparams.seed)
 
-    model = load_model(hparams)                                             #инициализируем модель
-    learning_rate = hparams.learning_rate                                   #задаем скорость обучения
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate,      #задаем оптимизатор
+    model = load_model(hparams)                                             # инициализируем модель
+    learning_rate = hparams.learning_rate                                   # задаем скорость обучения
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate,      # задаем оптимизатор
                                  weight_decay=hparams.weight_decay)
 
-    if hparams.fp16_run:                                                    #не вполне ясно что такое
+    if hparams.fp16_run:                                                    # используем пониженную точность
         from apex import amp
         model, optimizer = amp.initialize(
             model, optimizer, opt_level='O2')
 
-    if hparams.distributed_run:                                             #для распред вычислений, разберу позднее
+    if hparams.distributed_run:                                             # для распред вычислений, разберу позднее
         model = apply_gradient_allreduce(model)
 
-    criterion = Tacotron2Loss()                                             #задали функцию потерь
+    criterion = Tacotron2Loss()                                             # задали функцию потерь
 
     logger = prepare_directories_and_logger(
-        output_directory, log_directory, rank)                              #настройки логирования
+        output_directory, log_directory, rank)                              # настройки логирования
 
     train_loader, valset, collate_fn = prepare_dataloaders(hparams)
 
@@ -321,8 +318,7 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
 
         for i, batch in enumerate(train_loader):
             start = time.perf_counter()
-            #for param_group in optimizer.param_groups:
-            #    param_group['lr'] = learning_rate
+
             model.zero_grad()
             x, y = model.parse_batch(batch)
             y_pred = model(x)
@@ -346,7 +342,7 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
                 try:
                     grad_norm = torch.nn.utils.clip_grad_norm_(
                         model.parameters(), hparams.grad_clip_thresh, error_if_nonfinite=True)
-
+                # использовал для отладки
                 except:
                     print("error on batch {}".format(i))
             optimizer.step()
@@ -402,10 +398,8 @@ if __name__ == '__main__':
     print("cuDNN Enabled:", hparams.cudnn_enabled)
     print("cuDNN Benchmark:", hparams.cudnn_benchmark)
 
-
-
     #train("D:\\OutDir1", "D:\\LogDir1",  args.checkpoint_path,
     #      args.warm_start, args.n_gpus, args.rank, args.group_name, hparams)
-
-    train("D:\\OutDir1", "D:\\LogDir1",  "D:\\OutDir1\\checkpoint_294000",
+    # лень вызывать через командную строку, задам жестко.
+    train("D:\\OutDir1", "D:\\LogDir1",  "D:\\OutDir1\\checkpoint_669000",
           False, args.n_gpus, args.rank, args.group_name, hparams)

@@ -5,7 +5,7 @@ import torch.utils.data
 
 import layers
 from utils import load_wav_to_torch, load_filepaths_and_text
-from text import text_to_sequence, _symbols_to_sequence, _phonemes_to_sequence, text_to_phonemes_to_sequence
+from text import text_to_sequence, text_to_phonemes_to_sequence
 
 
 class TextMelLoader(torch.utils.data.Dataset):
@@ -31,16 +31,15 @@ class TextMelLoader(torch.utils.data.Dataset):
     def get_mel_text_pair(self, audiopath_and_text, use_phonemes=False):
         # separate filename and text
         try:
-            audiopath, text, voiceId, transcipt = audiopath_and_text[0], audiopath_and_text[1], audiopath_and_text[2],\
+            audiopath, text, voice_id, transcipt = audiopath_and_text[0], audiopath_and_text[1], audiopath_and_text[2],\
                                                   audiopath_and_text[3]
             if use_phonemes:
                 text = self.get_phonemes(transcipt)
             else:
                 text = self.get_text(text)
-
             mel = self.get_mel(audiopath)
-            voice = self.get_voices(voiceId)
-            return (text, mel, int(voiceId))
+            return text, mel, int(voice_id)
+        # except использовался в процессе отладки, чтоб найти битые сэмплы
         except:
             print(audiopath_and_text)
 
@@ -64,24 +63,12 @@ class TextMelLoader(torch.utils.data.Dataset):
         return melspec
 
     def get_text(self, text):
-        #text_norm = torch.IntTensor(text_to_phonemes_to_sequence(text))
         text_norm = torch.IntTensor(text_to_sequence(text, self.text_cleaners))
         return text_norm
 
     def get_phonemes(self, text):
         text_norm = torch.IntTensor(text_to_phonemes_to_sequence(text))
-        #text_norm = torch.IntTensor(text_to_sequence(text, self.text_cleaners))
         return text_norm
-
-    def get_voices(self, voice):
-        v = []
-        for i in voice:
-            v.append(ord(i))
-        voice = torch.IntTensor(v)
-        return voice
-
-    def voice_to_sequence(symbols):
-        return [s for s in symbols]
 
     def __getitem__(self, index):
         return self.get_mel_text_pair(self.audiopaths_and_text[index], self.use_phonemes)
@@ -90,7 +77,7 @@ class TextMelLoader(torch.utils.data.Dataset):
         return len(self.audiopaths_and_text)
 
 
-class TextMelCollate():
+class TextMelCollate:
     """ Zero-pads model inputs and targets based on number of frames per setep
     """
     def __init__(self, n_frames_per_step):
@@ -108,7 +95,8 @@ class TextMelCollate():
             dim=0, descending=True)
         max_input_len = input_lengths[0]
 
-        text_padded = torch.LongTensor(len(batch), max_input_len) #BATCH x max_input_len макс длину фразы
+        # BATCH x max_input_len макс длину фразы
+        text_padded = torch.LongTensor(len(batch), max_input_len)
         text_padded.zero_()
         for i in range(len(ids_sorted_decreasing)):
             text = batch[ids_sorted_decreasing[i]][0]
@@ -120,9 +108,6 @@ class TextMelCollate():
         if max_target_len % self.n_frames_per_step != 0:
             max_target_len += self.n_frames_per_step - max_target_len % self.n_frames_per_step
             assert max_target_len % self.n_frames_per_step == 0
-
-        #num_voices = len(batch[0][2])
-        #voices = torch.LongTensor(len(batch), [x[2] for x in batch])
 
         # include mel padded and gate padded
         mel_padded = torch.FloatTensor(len(batch), num_mels, max_target_len)
@@ -140,9 +125,6 @@ class TextMelCollate():
         voice.zero_()
         for i in range(len(ids_sorted_decreasing)):
             voice[i][0] = batch[ids_sorted_decreasing[i]][2]
-
-        #voice = torch.full((64, 1), batch[0][2])
-
 
         return text_padded, input_lengths, mel_padded, gate_padded, \
             output_lengths, voice

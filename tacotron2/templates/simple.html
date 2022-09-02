@@ -2,7 +2,13 @@
 <body>
  <form method="post" action="/tts">
             <input name="input_text"/>
-			<input name="input_dict"/>
+			<select name="input_dict" id="dicts">
+				<option value="0">Dict 1</option>
+				<option value="1">Dict 2</option>
+				<option value="2">Dict 3</option>
+				<option value="3">Dict 4</option>
+				<option value="4">Dict 5</option>
+			</select>
             <input type="submit" value="Generate" />
 </body>
 </html>
