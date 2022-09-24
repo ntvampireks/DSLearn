@@ -63,17 +63,6 @@ class Focus(nn.Module):
                         eps=1e-3,
                         momentum=0.03)
 
-        #nn.Conv2d(in_channels=ch_in*4,  # четыре потому что исходное изображение режется как бы на 4 части
-        #                      out_channels=ch_out,
-        #                      kernel_size=kernel_size,
-        #                      stride=stride,
-        #                      padding=autopad(kernel_size, padding),
-        #                      groups=groups,
-        #                      bias=False)
-        #self.bn = nn.BatchNorm2d(ch_out)
-        #self.act = nn.SiLU()
-
-
     def forward(self, x):
         # преобразуем тензор с изображениям batch x 3 x W x H -> batch x 12 x (W/2) x (H/2)
         x1 = x[..., ::2, ::2]  # с нулевого пикселя по x с шагом 2, с нулевого пикселя по y с шагом 2
@@ -82,9 +71,8 @@ class Focus(nn.Module):
         x4 = x[..., 1::2, 1::2]  # с первого пикселя по x с шагом 2, с первого пикселя по y с шагом 2
         # конкатенируем. можно было в одну строчку, но так понятней
         x = torch.cat([x1, x2, x3, x4], 1)
-        #x = self.conv(x)
-        #x = self.bn(x)
         return self.conv(x)
+
 
 class Bottleneck(nn.Module):
         # Standard bottleneck
@@ -163,11 +151,12 @@ class Detect(nn.Module):
         self.nl = len(anchors)  # number of detection layers
         self.na = len(anchors[0]) // 2  # number of anchors
         self.grid = [torch.zeros(1)] * self.nl  # init grid
+
         a = torch.tensor(anchors).float().view(self.nl, -1, 2)
         self.register_buffer('anchors', a)  # shape(nl,na,2)
         self.register_buffer('anchor_grid', a.clone().view(self.nl, 1, -1, 1, 1, 2))  # shape(nl,1,na,1,1,2)
         self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
-        self.inplace = inplace  # use in-place ops (e.g. slice assignment)
+        self.inplace = inplace  # use inplace ops (e.g. slice assignment)
 
     def forward(self, x):
         # x = x.copy()  # for profiling
@@ -178,12 +167,13 @@ class Detect(nn.Module):
             x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
 
             if not self.training:  # inference
-                if self.grid[i].shape[2:4] != x[i].shape[2:4] or self.onnx_dynamic:
+                if self.grid[i].shape[2:4] != x[i].shape[2:4] or self.onnx_dynamic or self.grid[i].device != x[i].device:
                     self.grid[i] = self._make_grid(nx, ny).to(x[i].device)
 
                 y = x[i].sigmoid()
                 if self.inplace:
-                    y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
+                    r = y[..., 0:2] * 2. - 0.5 + self.grid[i].to(x[i].device)
+                    y[..., 0:2] = r * self.stride[i]  # xy
                     y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
                 else:  # for YOLOv5 on AWS Inferentia https://github.com/ultralytics/yolov5/pull/2953
                     xy = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
@@ -192,3 +182,7 @@ class Detect(nn.Module):
                 z.append(y.view(bs, -1, self.no))
 
         return x if self.training else (torch.cat(z, 1), x)
+
+    def _make_grid(self, nx=20, ny=20):
+        yv, xv = torch.meshgrid([torch.arange(ny), torch.arange(nx)])
+        return torch.stack((xv, yv), 2).view((1, 1, ny, nx, 2)).float()

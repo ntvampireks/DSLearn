@@ -517,40 +517,6 @@ def check_dataset(data, autodownload=True):
     return data  # dictionary
 
 
-def check_amp(model):
-    # Check PyTorch Automatic Mixed Precision (AMP) functionality. Return True on correct operation
-    from models.common import AutoShape, DetectMultiBackend
-
-    def amp_allclose(model, im):
-        # All close FP32 vs AMP results
-        m = AutoShape(model, verbose=False)  # model
-        a = m(im).xywhn[0]  # FP32 inference
-        m.amp = True
-        b = m(im).xywhn[0]  # AMP inference
-        return a.shape == b.shape and torch.allclose(a, b, atol=0.1)  # close to 10% absolute tolerance
-
-    prefix = colorstr('AMP: ')
-    device = next(model.parameters()).device  # get model device
-    if device.type in ('cpu', 'mps'):
-        return False  # AMP only used on CUDA devices
-    f = ROOT / 'data' / 'images' / 'bus.jpg'  # image to check
-    im = f if f.exists() else 'https://ultralytics.com/images/bus.jpg' if check_online() else np.ones((640, 640, 3))
-    try:
-        assert amp_allclose(deepcopy(model), im) or amp_allclose(DetectMultiBackend('yolov5n.pt', device), im)
-        LOGGER.info(f'{prefix}checks passed ✅')
-        return True
-    except Exception:
-        help_url = 'https://github.com/ultralytics/yolov5/issues/7908'
-        LOGGER.warning(f'{prefix}checks failed ❌, disabling Automatic Mixed Precision. See {help_url}')
-        return False
-
-
-def yaml_load(file='data.yaml'):
-    # Single-line safe yaml loading
-    with open(file, errors='ignore') as f:
-        return yaml.safe_load(f)
-
-
 def yaml_save(file='data.yaml', data={}):
     # Single-line safe yaml saving
     with open(file, 'w') as f:
@@ -799,11 +765,11 @@ def clip_coords(boxes, shape):
 
 
 def non_max_suppression(prediction,
-                        conf_thres=0.25,
+                        conf_thres=0.1,
                         iou_thres=0.45,
                         classes=None,
                         agnostic=False,
-                        multi_label=False,
+                        multi_label=True,
                         labels=(),
                         max_det=300):
     """Non-Maximum Suppression (NMS) on inference results to reject overlapping bounding boxes
@@ -857,6 +823,7 @@ def non_max_suppression(prediction,
 
         # Box (center x, center y, width, height) to (x1, y1, x2, y2)
         box = xywh2xyxy(x[:, :4])
+
 
         # Detections matrix nx6 (xyxy, conf, cls)
         if multi_label:

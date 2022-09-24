@@ -420,9 +420,9 @@ class ModelEMA:
 
         msd = de_parallel(model).state_dict()  # model state_dict
         for k, v in self.ema.state_dict().items():
-            if v.dtype.is_floating_point:  # true for FP16 and FP32
-                v *= d
-                v += (1 - d) * msd[k].detach()
+                if v.dtype.is_floating_point:  # true for FP16 and FP32
+                        v *= d
+                        v += (1 - d) * msd[k].detach()
         # assert v.dtype == msd[k].dtype == torch.float32, f'{k}: EMA {v.dtype} and model {msd[k].dtype} must be FP32'
 
     def update_attr(self, model, include=(), exclude=('process_group', 'reducer')):

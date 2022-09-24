@@ -2,6 +2,10 @@ from components import *
 from torch import nn
 import torch
 import math
+from utils.general import xyxy2xywh
+from copy import copy
+import pandas as pd
+
 
 class YOLOv5(nn.Module):
     def _initialize_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
@@ -17,9 +21,9 @@ class YOLOv5(nn.Module):
     def __init__(self,  ch_in=3, nc=80):
 
         self.anchors = [
-            [10, 13, 16, 30, 33, 23],  # P3/8
-            [30, 61, 62, 45, 59, 119],  # P4/16
-            [116, 90, 156, 198, 373, 326]
+            [10,13, 16,30, 33,23],  # P3/8
+            [30,61, 62,45, 59,119],  # P4/16
+            [116,90, 156,198, 373,326]
         ]
 
         self.nc = nc
@@ -31,7 +35,7 @@ class YOLOv5(nn.Module):
         self.C3_1 = C3(ch_in=128, ch_out=128, bottleneck_num=3)
 
         self.cv2 = Conv(ch_in=128, ch_out=256, kernel_size=3, stride=2)
-        self.C3_2 = C3(ch_in=256, ch_out=256, bottleneck_num=9)
+        self.C3_2 = C3(ch_in=256, ch_out=256, bottleneck_num=6)
 
         self.cv3 = Conv(ch_in=256, ch_out=512, kernel_size=3, stride=2)
         self.C3_3 = C3(ch_in=512, ch_out=512, bottleneck_num=9)
@@ -60,11 +64,10 @@ class YOLOv5(nn.Module):
         self.conc4 = Concat(dimension=1)
         self.nC3_4 = C3(ch_in=1024, ch_out=1024, bottleneck_num=3, shortcut=False)
 
-        self.detect = Detect(nc=nc, anchors=self.anchors, ch=[1024, 512, 256], inplace=True)
+        self.detect = Detect(nc=nc, anchors=self.anchors, ch=[256, 512, 1024], inplace=True)
+        # детектор
         s = 256  # 2x min stride
         self.detect.inplace = True
-        #r = [s / x.shape[-2] for x in self.forward(torch.empty(1, ch_in, s, s))]
-
         self.detect.stride = torch.tensor([s / x.shape[-2] for x in self.forward(torch.empty(1, ch_in, s, s))])  # forward
         #check_anchor_order(m)  # must be in pixel-space (not grid-space)
         self.detect.anchors /= self.detect.stride.view(-1, 1, 1)
@@ -113,7 +116,7 @@ class YOLOv5(nn.Module):
 
         to_detect = [None, None, None]
 
-        to_detect[2] = x
+        to_detect[0] = x
 
         x = self.nconv3(x)
         x = self.conc3([lst_neck[1], x])
@@ -124,6 +127,51 @@ class YOLOv5(nn.Module):
         x = self.nconv4(x)
         x = self.conc4([lst_neck[0], x])
 
-        to_detect[0] = self.nC3_4(x)
+        to_detect[2] = self.nC3_4(x)
 
         return self.detect(to_detect)
+
+
+class Detections:
+    # YOLOv5 detections class for inference results
+    def __init__(self, ims, pred, files, times=(0, 0, 0), names=None, shape=None):
+        super().__init__()
+        d = pred[0].device  # device
+        gn = [torch.tensor([*(im.shape[i] for i in [1, 0, 1, 0]), 1, 1], device=d) for im in ims]  # normalizations
+        self.ims = ims  # list of images as numpy arrays
+        self.pred = pred  # list of tensors pred[0] = (xyxy, conf, cls)
+        self.names = names  # class names
+        self.files = files  # image filenames
+        self.times = times  # profiling times
+        self.xyxy = pred  # xyxy pixels
+        self.xywh = [xyxy2xywh(x) for x in pred]  # xywh pixels
+        self.xyxyn = [x / g for x, g in zip(self.xyxy, gn)]  # xyxy normalized
+        self.xywhn = [x / g for x, g in zip(self.xywh, gn)]  # xywh normalized
+        self.n = len(self.pred)  # number of images (batch size)
+
+        self.s = shape  # inference BCHW shape
+
+    def pandas(self):
+        # return detections as pandas DataFrames, i.e. print(results.pandas().xyxy[0])
+        new = copy(self)  # return copy
+        ca = 'xmin', 'ymin', 'xmax', 'ymax', 'confidence', 'class', 'name'  # xyxy columns
+        cb = 'xcenter', 'ycenter', 'width', 'height', 'confidence', 'class', 'name'  # xywh columns
+        for k, c in zip(['xyxy', 'xyxyn', 'xywh', 'xywhn'], [ca, ca, cb, cb]):
+            a = [[x[:5] + [int(x[5]), self.names[int(x[5])]] for x in x.tolist()] for x in getattr(self, k)]  # update
+            setattr(new, k, [pd.DataFrame(x, columns=c) for x in a])
+        return new
+
+    def tolist(self):
+        # return a list of Detections objects, i.e. 'for result in results.tolist():'
+        r = range(self.n)  # iterable
+        x = [Detections([self.ims[i]], [self.pred[i]], [self.files[i]], self.times, self.names, self.s) for i in r]
+        # for d in x:
+        #    for k in ['ims', 'pred', 'xyxy', 'xyxyn', 'xywh', 'xywhn']:
+        #        setattr(d, k, getattr(d, k)[0])  # pop out of list
+        return x
+
+    def __len__(self):
+        return self.n  # override len(results)
+
+
+
