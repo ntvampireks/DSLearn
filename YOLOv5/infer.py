@@ -145,11 +145,11 @@ def check_img(ckpt, img_path, ch_in, nc, img_size, device='cuda'):
 
     im /= 255  # 0 - 255 to 0.0 - 1.0
     pred = model(im)[0]
-    pred = non_max_suppression(pred, conf_thres=0.3, iou_thres=0.5, )
+    pred = non_max_suppression(pred, conf_thres=0.3, iou_thres=0.3, )
     d = Detections(im, pred, img_path, names=names)
 
     return pd.concat(d.pandas().xyxy)
 
 if __name__ == '__main__':
-    x = check_img('F:\\595epoch.pt', 'D:\\t1\\000000000025.jpg', 3, 80, 640, device='cuda')
+    x = check_img('F:\\325epoch.pt', 'D:\\t1\\000000000025.jpg', 3, 80, 640, device='cuda')
     print(x)

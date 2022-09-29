@@ -260,7 +260,7 @@ def train(device, ch_in, nc, imgsz,  weights, train_path, val_path, batch_size, 
 
         # lbox, lobg, lcls, loss
         print(*val_loss, l)
-        if epoch % 5 == 0:
+        if epoch % 5 == 0 or epoch == epochs:
             ckpt = {'epoch': epoch,
                     'model': deepcopy(de_parallel(model)),
                     'optimizer': optimizer.state_dict(),
