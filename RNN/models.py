@@ -3,6 +3,8 @@ import torch.nn as nn
 import numpy as np
 import pandas as pd
 from torch.autograd import Variable
+from torch import nn
+import torch
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -79,7 +81,7 @@ class Decoder(nn.Module):
 
         # Bx(H*T)
         #input_encoded.view(32, self.decoder_hidden_size*self.input_len)
-        return self.fc(input_encoded.view(32, self.decoder_hidden_size*self.input_len))
+        return self.fc(input_encoded.view(x.size(0), self.decoder_hidden_size*self.input_len))
 
 
 # (3) Autoencoder : putting the encoder and decoder together
