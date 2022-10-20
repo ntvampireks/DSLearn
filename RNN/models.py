@@ -33,7 +33,7 @@ class Encoder(nn.Module):
     def forward(self, x):
         h_t, c_t = (init_hidden(x, self.hidden_size),
                     init_hidden(x, self.hidden_size))
-        # кодируем в пространство BxH_size_Input_length
+        # кодируем в пространство B x Hidden_Size x Input_length
         input_encoded = Variable(torch.zeros(x.size(0), self.hidden_size, self.input_len))
         for t in range(self.input_len):
             # unsqueeze в данном случае добавляет размерность к x[:, :, t],
@@ -64,12 +64,6 @@ class Decoder(nn.Module):
         self.fc = nn.Linear(self.decoder_hidden_size*self.input_len, self.output_len)
 
     def forward(self, x):
-        """
-        Forward pass
-        Args:
-            _:
-            y_hist: (torch.Tensor): shifted target
-        """
         h_t, c_t = (init_hidden(x, self.decoder_hidden_size),
                     init_hidden(x, self.decoder_hidden_size))
         # BxHxT
@@ -80,7 +74,6 @@ class Decoder(nn.Module):
             input_encoded[:,:,t] = lstm_out.squeeze(0)
 
         # Bx(H*T)
-        #input_encoded.view(32, self.decoder_hidden_size*self.input_len)
         return self.fc(input_encoded.view(x.size(0), self.decoder_hidden_size*self.input_len))
 
 
