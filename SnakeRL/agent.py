@@ -20,7 +20,7 @@ class Agent:
         self.max_memory = max_memory
         self.gamma = 0.8  # Коэффициент обесценивания
         self.memory = deque(maxlen=self.max_memory)
-        self.model = DQN(12, 256, 4)
+        self.model = DQN(16, 224, 4)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
 
@@ -35,6 +35,9 @@ class Agent:
             # или используем всю память
             mini_sample = self.memory
         states, actions, rewards, next_states, dones = zip(*mini_sample)
+        states = np.array(states)
+        next_states = np.array(next_states)
+        actions = np.array(actions)
         self.train_step(states, actions, rewards, next_states, dones)
 
     def train_short_memory(self, state, action, reward, next_state, done):
@@ -80,8 +83,10 @@ def train(iterations, lr, memory_size, batch_size):
     record = 0
     agent = Agent(memory_size, batch_size, lr)
     game = Field(20, 20, human=False)
+    d = Drawer(600, 600, 4, "Snake", game)
 
-    for i in range(iterations):
+
+    while agent.n_games < iterations:
         # Получаем прошлое состояние среды
         state_old = game.get_state()
         # вычисляем следующее действие
@@ -101,14 +106,21 @@ def train(iterations, lr, memory_size, batch_size):
 
         # выполняем ход, фиксируем новое состояние, награду, признак что игра завершена, общий счет на текущую игру
         state_new, reward, done, score = game.step(turn)
+        state_new = np.array(state_new)
         # корректировка весов на основе последнего действия
         agent.train_short_memory(state_old, final_move, reward, state_new, done)
         # закинули в нашу память результаты хода
         agent.remember(state_old, final_move, reward, state_new, done)
+        t = game.base
         # итерация закончена
+
+        d.refresh()
+        d.update()
+        #ime.sleep(0.001)
+
         if done:
             game.reset()
-            agent.n_games = i
+            agent.n_games += 1
             agent.train_long_memory()
 
             if score > record:
@@ -119,7 +131,7 @@ def train(iterations, lr, memory_size, batch_size):
             total_score += score
             mean_score = total_score / agent.n_games
             plot_mean_scores.append(mean_score)
-            if agent.n_games % 100 == 0:
+            if agent.n_games % 10 == 0:
                 print('Game', agent.n_games, 'Score', score, 'Record:', record, "Totalscore:", total_score,
                       "Mean_score:", mean_score)
 
@@ -140,5 +152,5 @@ def play():
         print("Reward:", reward, "Score:", score)
         d.refresh()
         d.update()
-        time.sleep(0.5)
+        time.sleep(0.05)
     d.mainloop()

@@ -62,9 +62,9 @@ class Field(gym.Env):
             for body in self.snake.body[3:]:
                 if self.snake.get_distance(body) == 1:
                     if body.Y < self.snake.y:
-                        body_down.append(1)
-                    elif body.Y > self.snake.y:
                         body_up.append(1)
+                    elif body.Y > self.snake.y:
+                        body_down.append(1)
                     if body.X < self.snake.x:
                         body_left.append(1)
                     elif body.X > self.snake.x:
@@ -88,22 +88,63 @@ class Field(gym.Env):
         else:
             body_left = 0
 
-        state.append(int(self.snake.x == 0 or body_up == 1))    # препятствие слева
-        state.append(int(self.snake.y == 0 or body_left == 1))  # препятствие выше
-        state.append(int(self.snake.y == self.size_y-1 or body_down == 1))  # препятствие справа
-        state.append(int(self.snake.x == self.size_x - 1 or body_right == 1))  # препятствие ниже
+        traverse_up = []
+        traverse_down = []
+        traverse_left = []
+        traverse_right = []
+
+        if len(self.snake.body) > 3:
+            for body in self.snake.body[3:]:
+                if body.Y == self.snake.y and body.X < self.snake.x:
+                    traverse_left.append(1)
+                elif body.Y == self.snake.y and body.X > self.snake.x:
+                    traverse_right.append(1)
+                if body.X == self.snake.x and body.Y < self.snake.y:
+                    traverse_up.append(1)
+                elif body.X == self.snake.x and body.Y > self.snake.y:
+                    traverse_down.append(1)
+
+        if len(traverse_up) > 0:
+            traverse_up = 1
+        else:
+            traverse_up = 0
+        if len(traverse_right) > 0:
+            traverse_right = 1
+        else:
+            traverse_right = 0
+
+        if len(traverse_down) > 0:
+            traverse_down = 1
+        else:
+            traverse_down = 0
+        if len(traverse_left) > 0:
+            traverse_left = 1
+        else:
+            traverse_left = 0
+
+
+
+        state.append(int(self.snake.y == 0 or body_up == 1))    # препятствие выше
+        state.append(int(self.snake.x == 0 or body_left == 1))  # препятствие слева
+        state.append(int(self.snake.y == self.size_y - 1 or body_down == 1))  # препятствие ниже
+        state.append(int(self.snake.x == self.size_x - 1 or body_right == 1))  # препятствие справа
 
         state.append(int(self.snake.y > self.apple.Y))  # яблоко левее
         state.append(int(self.snake.x > self.apple.X))  # яблоко выше
         state.append(int(self.snake.y < self.apple.Y))  # яблоко правее
         state.append(int(self.snake.x < self.apple.X))  # яблоко ниже
 
+        state.append(int(traverse_up))  # хвост на траверзе сверху
+        state.append(int(traverse_down))  # хвост на траверсе снизу
+        state.append(int(traverse_left))  # хвост на траверсе слева
+        state.append(int(traverse_right))  # хвост на траверсе справа
+
         state.append(int(self.snake.direction == "Up"))
         state.append(int(self.snake.direction == "Left"))
         state.append(int(self.snake.direction == "Down"))
         state.append(int(self.snake.direction == "Right"))
-
-        return state
+        # s = base.flatten().tolist()
+        return np.array(state) # +s
 
     def reset(self):
         self.snake = Snake(int(self.base.shape[0] / 2),
@@ -155,16 +196,8 @@ class Field(gym.Env):
             self.reward = 10
             reward_given = True
 
-        if self.out_of_borders():
-            self.reward = -100
-            reward_given = True
-            self.done = True
-            if self.human:
-                self.reset()
-                print("Game Over!")
-
-        if self.body_check_snake():
-            self.reward = -100
+        if self.out_of_borders() or self.body_check_snake():
+            self.reward = -150
             reward_given = True
             self.done = True
             if self.human:
@@ -180,9 +213,9 @@ class Field(gym.Env):
             if self.distance < self.prev_distance:
                 self.reward = 1
             else:
-                self.reward = -10
+                self.reward = -5
         if self.human:
-            time.sleep(0.5)
+            time.sleep(0.05)
             self.base = self.get_state()
 
         self.score += self.reward
