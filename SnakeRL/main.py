@@ -9,7 +9,7 @@ Y_SIZE = 20
 
 
 if __name__ == '__main__':
-    train(10000, 0.001, 5000, 123)
+    train(iterations=10000, lr=0.001, memory_size=50000, batch_size=123, epsilon=0.95, epsilon_rate=0.99, gamma=0.8)
     # play()
 
 
