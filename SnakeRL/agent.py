@@ -58,7 +58,7 @@ class Agent:
             reward = torch.unsqueeze(reward, 0)
             dn.append(done)
             done = dn
-        # получили функцию ценности для текущего состояния/
+        # получили функцию ценности действий для текущего состояния/
         pred = self.model(state)
         target = pred.clone()
         for idx in range(len(done)):
@@ -106,8 +106,8 @@ def train(iterations, lr, memory_size, batch_size, epsilon, epsilon_rate, gamma)
             final_move = np.zeros(4)
             final_move[turn] = 1
         else:
-            st = softmax(final_move) #softmax(final_move)
-            turn = np.random.choice(np.arange(0, 4), p=st) # np.argmax(final_move).item()
+            st = softmax(final_move) #softmax(final_move) # вероятности каждого из возможных действий
+            turn = np.random.choice(np.arange(0, 4), p=st)
 
         # выполняем ход, фиксируем новое состояние, награду, признак что игра завершена, общий счет на текущую игру
         state_new, reward, done, score = game.step(turn)
