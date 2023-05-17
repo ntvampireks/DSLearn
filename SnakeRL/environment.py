@@ -122,8 +122,6 @@ class Field(gym.Env):
         else:
             traverse_left = 0
 
-
-
         state.append(int(self.snake.y == 0 or body_up == 1))    # препятствие выше
         state.append(int(self.snake.x == 0 or body_left == 1))  # препятствие слева
         state.append(int(self.snake.y == self.size_y - 1 or body_down == 1))  # препятствие ниже
@@ -144,7 +142,7 @@ class Field(gym.Env):
         state.append(int(self.snake.direction == "Down"))
         state.append(int(self.snake.direction == "Right"))
         # s = base.flatten().tolist()
-        return np.array(state) # +s
+        return np.array(state)  # +s
 
     def reset(self):
         self.snake = Snake(int(self.base.shape[0] / 2),

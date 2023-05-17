@@ -45,7 +45,6 @@ class Conv_DQN(nn.Module):
 
         self.conv1 = nn.Conv2d(1, hidden_dim, kernel_size=21, stride=1, padding=10)
 
-
         self.linear2 = nn.Linear(hidden_dim, action_size)
 
         self.act = nn.ReLU()
@@ -68,5 +67,3 @@ class Conv_DQN(nn.Module):
 
         filename = os.path.join(model_folder_path, file_name)
         torch.save(self, filename)
-
-

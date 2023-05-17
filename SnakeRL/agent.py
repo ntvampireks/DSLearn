@@ -10,9 +10,10 @@ from rasterizer import Drawer
 import time
 from scipy.special import softmax
 
+
 class Agent:
 
-    def __init__(self, max_memory, batch_size, lr, epsilon, epsilon_rate, gamma):
+    def __init__(self, max_memory, batch_size, lr, epsilon=0.95, epsilon_rate=0.99, gamma=0.8):
         self.batch_size = batch_size
         self.lr = lr
         self.n_games = 0
@@ -77,7 +78,7 @@ class Agent:
         self.optimizer.step()
 
 
-#def softmax(x):
+# def softmax(x):
 #    """Compute softmax values for each sets of scores in x."""
 #    return np.exp(x) / np.sum(np.exp(x), axis=0)
 
@@ -106,7 +107,7 @@ def train(iterations, lr, memory_size, batch_size, epsilon, epsilon_rate, gamma)
             final_move = np.zeros(4)
             final_move[turn] = 1
         else:
-            st = softmax(final_move) #softmax(final_move) # вероятности каждого из возможных действий
+            st = softmax(final_move)  # softmax(final_move) # вероятности каждого из возможных действий
             turn = np.random.choice(np.arange(0, 4), p=st)
 
         # выполняем ход, фиксируем новое состояние, награду, признак что игра завершена, общий счет на текущую игру
@@ -138,6 +139,7 @@ def train(iterations, lr, memory_size, batch_size, epsilon, epsilon_rate, gamma)
             if agent.n_games % 10 == 0:
                 print('Game', agent.n_games, 'Score', score, 'Record:', record, "Totalscore:", total_score,
                       "Mean_score:", mean_score, "Epsilon:", agent.epsilon)
+
 
 def play():
     agent = Agent(100000, 1000, 0.001)
